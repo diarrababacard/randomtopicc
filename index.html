@@ -217,16 +217,8 @@ let timerInterval = null;
 let timerRunning = false;
 let hintVisible = false;
 
-async function callAPI(prompt) {
-  const res = await fetch('/api/gemini', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt })
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data.text.replace(/```json|```/g, '').trim();
-}
+// REMPLACE PAR TA NOUVELLE CLÉ ICI
+const API_KEY = 'TA_NOUVELLE_CLE_API'; 
 
 function setLang(lang) {
   currentLang = lang;
@@ -323,6 +315,32 @@ function toggleTimer() {
   }
 }
 
+// FONCTION AMÉLIORÉE
+async function callGemini(prompt) {
+  // Utilisation de 1.5-flash pour plus de stabilité
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { 
+        temperature: 0.7, 
+        maxOutputTokens: 500,
+        responseMimeType: "application/json" // Force l'IA à parler en JSON pur
+      }
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error('Erreur réseau ou clé API invalide');
+  }
+
+  const data = await response.json();
+  return data.candidates[0].content.parts[0].text;
+}
+
 async function generateTopic() {
   const btn = document.getElementById('btn-generate');
   btn.disabled = true;
@@ -341,30 +359,22 @@ async function generateTopic() {
   const cefrDesc = { A1: 'absolute beginner', A2: 'elementary', B1: 'intermediate', B2: 'upper-intermediate', C1: 'advanced' };
 
   const prompt = `Generate a single speaking practice topic for a ${cefrDesc[currentLevel]} ${langLabel} learner (CEFR ${currentLevel}).
-
-Requirements:
-- The topic MUST be written in ${langLabel}
-- It should be a short sentence or question (1-2 sentences max)
-- Appropriate vocabulary and complexity for ${currentLevel} level
-- Everyday, relatable, engaging topic
-- Vary across themes: daily life, opinions, descriptions, stories, comparisons, advice, hypotheticals
-
-Respond with ONLY a JSON object, no markdown, no preamble:
+Respond with ONLY a JSON object:
 {"topic": "...", "hint1": "...", "hint2": "...", "hint3": "..."}
-
-The hints should be brief speaking prompts/ideas in ${langLabel} to help structure a response (adapt complexity to ${currentLevel}).`;
+The topic and hints must be in ${langLabel}.`;
 
   try {
-    const raw = await callAPI(prompt);
+    const raw = await callGemini(prompt);
     const parsed = JSON.parse(raw);
     currentTopic = parsed.topic;
     topicEl.textContent = parsed.topic;
-    document.getElementById('hint-box').innerHTML = `<strong>Pistes pour parler :</strong><br>${parsed.hint1}<br>${parsed.hint2}<br>${parsed.hint3}`;
+    document.getElementById('hint-box').innerHTML = `<strong>Pistes pour parler :</strong><br>• ${parsed.hint1}<br>• ${parsed.hint2}<br>• ${parsed.hint3}`;
     document.getElementById('btn-hint').disabled = false;
     document.getElementById('btn-vocab').disabled = false;
     document.getElementById('btn-timer').disabled = false;
   } catch(e) {
-    topicEl.innerHTML = '<span style="color:var(--red)">Erreur — réessaie dans un instant.</span>';
+    console.error(e);
+    topicEl.innerHTML = '<span style="color:var(--red)">Erreur — vérifie ta clé API ou ta connexion.</span>';
   }
   btn.disabled = false;
 }
@@ -386,19 +396,12 @@ async function getVocab() {
 
   const langLabel = { fr: 'French', en: 'English', es: 'Spanish' }[currentLang];
 
-  const prompt = `For the speaking topic: "${currentTopic}"
-Language: ${langLabel}, CEFR level: ${currentLevel}
-
-Give 5 useful words or expressions for discussing this topic, appropriate for ${currentLevel} level.
-
-Respond ONLY with a JSON array, no markdown, no preamble:
-[{"word":"...","def":"..."},...]
-
-"word" = the term in ${langLabel}
-"def" = brief definition/translation in French (1 line)`;
+  const prompt = `For the topic: "${currentTopic}", give 5 useful words/expressions in ${langLabel} for a ${currentLevel} learner. 
+Respond ONLY with a JSON array: [{"word":"...","def":"..."}] 
+The definition must be in French.`;
 
   try {
-    const raw = await callAPI(prompt);
+    const raw = await callGemini(prompt);
     const vocab = JSON.parse(raw);
     vocabList.innerHTML = vocab.map(v => `
       <div class="vocab-item">
