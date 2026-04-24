@@ -13,5 +13,5 @@ speaking-trainer/
 1. Push ce dossier sur GitHub
 2. Importe sur vercel.com
 3. Settings → Environment Variables → ajoute :
-   GEMINI_API_KEY = ta_clé_google_ai_studio
+   GEMINI_API_KEY = AIzaSyBFeBJmcIDy9hX9WCzhikO4ylQmvvlYrzQ
 4. Redeploy
